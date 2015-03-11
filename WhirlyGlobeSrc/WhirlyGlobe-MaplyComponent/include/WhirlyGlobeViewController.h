@@ -68,6 +68,33 @@
   */
 - (WhirlyGlobeViewControllerAnimationState *)globeViewController:(WhirlyGlobeViewController *)viewC stateForTime:(NSTimeInterval)currentTime;
 
+@optional
+
+/** @brief This method is called at the end of the animation.
+    @details The globe view controller calls this method when the animation is finished.  Do your cleanup here if need be.
+    @param viewC The globe view controller.
+  */
+- (void)globeViewControllerDidFinishAnimation:(WhirlyGlobeViewController *)viewC;
+
+@end
+
+/** @brief A simple animation delegate for moving the globe around.
+    @details The animation delegate support provides a lot of flexibility.  This version just provides all the standard fields and interpolates from beginning to end.
+  */
+@interface WhirlyGlobeViewControllerSimpleAnimationDelegate : NSObject <WhirlyGlobeViewControllerAnimationDelegate>
+
+/// @brief Location at the end of the animation
+@property (nonatomic) MaplyCoordinate loc;
+
+/// @brief Heading at the end of the animation
+@property (nonatomic) double heading;
+
+/// @brief Height at the end of the animation
+@property (nonatomic) double height;
+
+/// @brief Tilt at the end of the animation
+@property (nonatomic) double tilt;
+
 @end
 
 /** @brief Globe View Controller Delegate protocol for getting back selection and tap events.
@@ -84,6 +111,7 @@
 - (void)globeViewController:(WhirlyGlobeViewController *)viewC didSelect:(NSObject *)selectedObj;
 
 /** @brief Called when the user taps on or near an object.
+    @details This will call back with the closest object it finds near (or on) where the user tapped.
     @details You're given the object you passed in originally, such as a MaplyScreenMarker.
     @details This version is called preferentially if it exists.  Otherwise globeViewController:didSelect: is called if it exists.
     @param viewC The view controller where the user selected something.
@@ -92,6 +120,15 @@
     @param screenPt The location on screen where the user tapped.
   */
 - (void)globeViewController:(WhirlyGlobeViewController *)viewC didSelect:(NSObject *)selectedObj atLoc:(MaplyCoordinate)coord onScreen:(CGPoint)screenPt;
+
+/** @brief Called when the user taps on or near one or more objects.  Returns them all.
+    @details This method is called when the
+    @param viewC The view controller where the user selected something.
+    @param selectedObjs A list of
+    @param coord The location (geographic lon/lat in radians) where the user tapped.
+    @param screenPt The location on screen where the user tapped.
+  */
+- (void)globeViewController:(WhirlyGlobeViewController *)viewC allSelect:(NSArray *)selectedObjs atLoc:(MaplyCoordinate)coord onScreen:(CGPoint)screenPt;
 
 /** @brief Called when the user taps outside the globe.
   */
@@ -163,6 +200,11 @@
     @details On by default.
  */
 @property(nonatomic,assign) bool rotateGesture;
+
+/** @brief Turn the tilte gesture recognizer on and off
+    @details Off by default.
+ */
+@property(nonatomic,assign) bool tiltGesture;
 
 /** @brief Turn the double tap to zoom gesture recognizer on and off
  @details On by default.
@@ -259,6 +301,14 @@
     @param howLong How long in seconds to take getting there.
  */
 - (bool)animateToPosition:(MaplyCoordinate)newPos onScreen:(CGPoint)loc time:(NSTimeInterval)howLong;
+
+/** @brief Animate to the given position, heading and height over time.
+    @param newPos A coordinate in geographic (lon/lat radians)
+    @param newHeight New height to animate to.
+    @param newHeading New heading to finish on.
+    @param howLong A time interval in seconds.
+ */
+- (bool)animateToPosition:(MaplyCoordinate)newPos height:(float)newHeight heading:(float)newHeading time:(NSTimeInterval)howLong;
 
 /** @brief Animate with a delegate over time.
     @details Fill in the WhirlyGlobeViewControllerAnimationDelegate and you can control the visual view on a frame by frame basis.  You'll get called back at the appropriate time on the main thread over the time period.

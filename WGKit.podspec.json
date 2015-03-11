@@ -46,7 +46,7 @@
       "source_files": "WhirlyGlobeSrc/WhirlyGlobe-MaplyComponent/include/**/*.h",
       "public_header_files": "WhirlyGlobeSrc/WhirlyGlobe-MaplyComponent/include/*.h",
       "dependencies": {
-        "WhirlyGlobe/Lib-Headers": [
+        "WGKit/Lib-Headers": [
 
         ]
       }
@@ -54,7 +54,7 @@
     {
       "name": "Headers",
       "dependencies": {
-        "WhirlyGlobe/MaplyComponent-Headers": [
+        "WGKit/MaplyComponent-Headers": [
 
         ]
       }
@@ -63,7 +63,7 @@
       "name": "Lib",
       "source_files": "WhirlyGlobeSrc/WhirlyGlobeLib/src/*.{mm,m}",
       "dependencies": {
-        "WhirlyGlobe/Lib-Headers": [
+        "WGKit/Lib-Headers": [
 
         ],
         "proj4": [
@@ -99,10 +99,10 @@
       "source_files": "WhirlyGlobeSrc/WhirlyGlobe-MaplyComponent/src/*.{cpp,mm,m}",
       "compiler_flags": "-DDDXMLElementDummyFunc() -DDDXMLDummyFunc()",
       "dependencies": {
-        "WhirlyGlobe/Lib": [
+        "WGKit/Lib": [
 
         ],
-        "WhirlyGlobe/MaplyComponent-Headers": [
+        "WGKit/MaplyComponent-Headers": [
 
         ],
         "AFNetworking": [

@@ -220,6 +220,13 @@ Drawable::Drawable(const std::string &name)
 Drawable::~Drawable()
 {
 }
+    
+void Drawable::runTweakers(WhirlyKitRendererFrameInfo *frame)
+{
+    for (DrawableTweakerRefSet::iterator it = tweakers.begin();
+         it != tweakers.end(); ++it)
+        (*it)->tweakForFrame(this,frame);
+}
 	
 void DrawableChangeRequest::execute(Scene *scene,WhirlyKitSceneRendererES *renderer,WhirlyKitView *view)
 {
@@ -1709,6 +1716,27 @@ void BasicDrawable::drawOGL2(WhirlyKitRendererFrameInfo *frameInfo,Scene *scene)
     // Let a subclass clean up any remaining state
     postDrawCallback(frameInfo,scene);
 }
+    
+BasicDrawableTexTweaker::BasicDrawableTexTweaker(const std::vector<SimpleIdentity> &texIDs,NSTimeInterval startTime,double period)
+    : texIDs(texIDs), startTime(startTime), period(period)
+{
+}
+    
+void BasicDrawableTexTweaker::tweakForFrame(Drawable *draw,WhirlyKitRendererFrameInfo *frame)
+{
+    BasicDrawable *basicDraw = (BasicDrawable *)draw;
+    
+    double t = fmod(frame.currentTime-startTime,period)/period;
+    int base = floor(t * texIDs.size());
+    int next = (base+1)%texIDs.size();
+    
+    basicDraw->setTexId(0, texIDs[base]);
+    basicDraw->setTexId(1, texIDs[next]);
+
+    // This forces a redraw every frame
+    // Note: There has to be a better way
+    frame.scene->addChangeRequest(NULL);
+}
 
 ColorChangeRequest::ColorChangeRequest(SimpleIdentity drawId,RGBAColor inColor)
 	: DrawableChangeRequest(drawId)
@@ -1857,7 +1885,7 @@ void LineWidthChangeRequest::execute2(Scene *scene,WhirlyKitSceneRendererES *ren
 }
 
 BasicDrawableInstance::BasicDrawableInstance(const std::string &name,SimpleIdentity masterID)
-    : Drawable(name), enable(true), masterID(masterID)
+    : Drawable(name), enable(true), masterID(masterID), requestZBuffer(false), writeZBuffer(true)
 {
 }
 
@@ -1909,9 +1937,16 @@ const Eigen::Matrix4d *BasicDrawableInstance::getMatrix() const
 {
     return basicDraw->getMatrix();
 }
+    
+void BasicDrawableInstance::addInstances(const std::vector<SingleInstance> &insts)
+{
+    instances.insert(instances.end(), insts.begin(), insts.end());
+}
 
 void BasicDrawableInstance::draw(WhirlyKitRendererFrameInfo *frameInfo,Scene *scene)
 {
+    whichInstance = -1;
+    
     int oldDrawPriority = basicDraw->getDrawPriority();
     RGBAColor oldColor = basicDraw->getColor();
     float oldLineWidth = basicDraw->getLineWidth();
@@ -1928,7 +1963,49 @@ void BasicDrawableInstance::draw(WhirlyKitRendererFrameInfo *frameInfo,Scene *sc
     if (hasMinVis || hasMaxVis)
         basicDraw->setVisibleRange(minVis, maxVis);
     
-    basicDraw->draw(frameInfo,scene);
+    Matrix4f oldMvpMat = frameInfo.mvpMat;
+    Matrix4f oldMvMat = frameInfo.viewAndModelMat;
+    Matrix4f oldMvNormalMat = frameInfo.viewModelNormalMat;
+
+    // No matrices, so just one instance
+    if (instances.empty())
+        basicDraw->draw(frameInfo,scene);
+    else {
+        // Run through the list of instances
+        for (unsigned int ii=0;ii<instances.size();ii++)
+        {
+            // Change color
+            const SingleInstance &singleInst = instances[ii];
+            whichInstance = ii;
+            if (singleInst.colorOverride)
+                basicDraw->setColor(singleInst.color);
+            else {
+                if (hasColor)
+                    basicDraw->setColor(color);
+                else
+                    basicDraw->setColor(oldColor);
+            }
+
+            // Note: Ignoring offsets, so won't work reliably in 2D
+            Eigen::Matrix4d newMvpMat = frameInfo.projMat4d * frameInfo.viewTrans4d * frameInfo.modelTrans4d * singleInst.mat;
+            Eigen::Matrix4d newMvMat = frameInfo.viewTrans4d * frameInfo.modelTrans4d * singleInst.mat;
+            Eigen::Matrix4d newMvNormalMat = newMvMat.inverse().transpose();
+
+            // Inefficient, but effective
+            Matrix4f mvpMat4f = Matrix4dToMatrix4f(newMvpMat);
+            Matrix4f mvMat4f = Matrix4dToMatrix4f(newMvpMat);
+            Matrix4f mvNormalMat4f = Matrix4dToMatrix4f(newMvNormalMat);
+            frameInfo.mvpMat = mvpMat4f;
+            frameInfo.viewAndModelMat = mvMat4f;
+            frameInfo.viewModelNormalMat = mvNormalMat4f;
+            
+            basicDraw->draw(frameInfo,scene);
+        }
+    }
+    
+    frameInfo.mvpMat = oldMvpMat;
+    frameInfo.viewAndModelMat = oldMvMat;
+    frameInfo.viewModelNormalMat = oldMvNormalMat;
     
     // Set it back
     if (hasDrawPriority)

@@ -22,7 +22,6 @@
 #import "GlobeView.h"
 #import "GlobeMath.h"
 #import "TextureAtlas.h"
-#import "ScreenSpaceGenerator.h"
 #import "ViewPlacementGenerator.h"
 #import "FontTextureManager.h"
 #import "SelectionManager.h"
@@ -36,24 +35,24 @@
 #import "ParticleSystemManager.h"
 #import "BillboardManager.h"
 #import "WideVectorManager.h"
+#import "GeometryManager.h"
 
 namespace WhirlyKit
 {
     
 Scene::Scene()
+    : ssGen(NULL)
 {
 }
     
 void Scene::Init(WhirlyKit::CoordSystemDisplayAdapter *adapter,Mbr localMbr,unsigned int depth)
 {
+    ssGen = NULL;
+    
     pthread_mutex_init(&coordAdapterLock,NULL);
     coordAdapter = adapter;
     cullTree = new CullTree(adapter,localMbr,depth);
     
-    // Also toss in a screen space generator to share amongst the layers
-    ssGen = new ScreenSpaceGenerator(kScreenSpaceGeneratorShared,Point2d(0.1,0.1));
-    screenSpaceGeneratorID = ssGen->getId();
-    generators.insert(ssGen);
     // And put in a UIView placement generator for use in the main thread
     vpGen = new ViewPlacementGenerator(kViewPlacementGeneratorShared);
     generators.insert(vpGen);
@@ -83,6 +82,8 @@ void Scene::Init(WhirlyKit::CoordSystemDisplayAdapter *adapter,Mbr localMbr,unsi
     addManager(kWKBillboardManager, new BillboardManager());
     // Widened vectors
     addManager(kWKWideVectorManager, new WideVectorManager());
+    // Raw Geometry
+    addManager(kWKGeometryManager, new GeometryManager());
     
     // Font Texture manager is used from any thread
     fontTexManager = [[WhirlyKitFontTextureManager alloc] initWithScene:this];
@@ -409,6 +410,16 @@ void Scene::addSubTextures(const std::vector<SubTexture> &subTexes)
     subTextureMap.insert(subTexes.begin(),subTexes.end());
     pthread_mutex_unlock(&subTexLock);
 }
+    
+void Scene::removeSubTexture(SimpleIdentity subTexID)
+{
+    pthread_mutex_lock(&subTexLock);
+    SubTexture dumbTex(subTexID);
+    SubTextureSet::iterator it = subTextureMap.find(dumbTex);
+    if (it != subTextureMap.end())
+        subTextureMap.erase(it);
+    pthread_mutex_unlock(&subTexLock);
+}
 
 // Look for a sub texture by ID
 SubTexture Scene::getSubTexture(SimpleIdentity subTexId)
@@ -635,6 +646,8 @@ void RemDrawableReq::execute(Scene *scene,WhirlyKitSceneRendererES *renderer,Whi
     DrawableRefSet::iterator it = scene->drawables.find(DrawableRef(dumbDraw));
     if (it != scene->drawables.end())
     {
+        [renderer removeContinuousRenderRequest:(*it)->getId()];
+        
         // Teardown OpenGL foo
         (*it)->teardownGL(scene->getMemManager());
 

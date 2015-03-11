@@ -186,7 +186,6 @@
 /// It's real world coordinates for kMaplyWideVecCoordTypeReal and pixel size for kMaplyWideVecCoordTypeScreen
 #define kMaplyWideVecTexRepeatLen @"repeatSize"
 
-
 /// If set we'll break up a vector feature to the given epsilon on a globe surface
 #define kMaplySubdivEpsilon @"subdivisionepsilon"
 /// If subdiv epsilon is set we'll look for a subdivision type. Default is simple.
@@ -227,6 +226,18 @@
 #define kMaplyLoftedPolyBase @"base"
 /// Grid size we used to chop the lofted polygons up (10 degress by default)
 #define kMaplyLoftedPolyGridSize @"gridsize"
+/// If set to @(YES) this will draw an outline around the top of the lofted poly in lines
+#define kMaplyLoftedPolyOutline @"outline"
+/// If set to @(YES) this will draw an outline around the bottom of the lofted poly in lines
+#define kMaplyLoftedPolyOutlineBottom @"outlineBottom"
+/// If the outline is one this is the outline's color
+#define kMaplyLoftedPolyOutlineColor @"outlineColor"
+/// This is the outline's width if it's turned on
+#define kMaplyLoftedPolyOutlineWidth @"outlineWidth"
+/// Draw priority of the lines created for the lofted poly outline
+#define kMaplyLoftedPolyOutlineDrawPriority @"outlineDrawPriority"
+/// If set and we're drawing an outline, this will create lines up the sides
+#define kMaplyLoftedPolyOutlineSide @"outlineSide"
 
 /// These are used by active vector objects
 #define kMaplyVecHeight @"height"

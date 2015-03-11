@@ -21,9 +21,84 @@
 #import "PinchDelegateFixed.h"
 #import "EAGLView.h"
 #import "RotateDelegate.h"
+#import "TiltDelegate.h"
 
 using namespace Eigen;
 using namespace WhirlyKit;
+
+@implementation WGStandardTiltDelegate
+{
+    WhirlyGlobeView *globeView;
+    bool active;
+    double outsideTilt;
+    // Tilt parameters
+    float minTilt,maxTilt,minTiltHeight,maxTiltHeight;
+}
+
+- (id)initWithGlobeView:(WhirlyGlobeView *)inGlobeView
+{
+    self = [super init];
+    globeView = inGlobeView;
+    
+    return self;
+}
+
+- (void)setMinTilt:(float)inMinTilt maxTilt:(float)inMaxTilt minHeight:(float)inMinHeight maxHeight:(float)inMaxHeight
+{
+    active = true;
+    minTilt = inMinTilt;
+    maxTilt = inMaxTilt;
+    minTiltHeight = inMinHeight;
+    maxTiltHeight = inMaxHeight;
+}
+
+- (void)getMinTilt:(float *)retMinTilt maxTilt:(float *)retMaxTilt minHeight:(float *)retMinHeight maxHeight:(float *)retMaxHeight
+{
+    *retMinTilt = minTilt;
+    *retMaxTilt = maxTilt;
+    *retMinHeight = minTiltHeight;
+    *retMaxHeight = maxTiltHeight;
+}
+
+- (double)tiltFromHeight:(double)height
+{
+    double maxValidTilt = [self maxTilt];
+    if (!active)
+    {
+        return std::min(outsideTilt,maxValidTilt);
+    }
+    
+    double newTilt = 0.0;
+    
+    // Now the tilt, if we're in that mode
+    double newHeight = height;
+    if (newHeight <= minTiltHeight)
+        newTilt = minTilt;
+    else if (newHeight >= maxTiltHeight)
+        newTilt = maxTilt;
+    else {
+        float t = (newHeight-minTiltHeight)/(maxTiltHeight - minTiltHeight);
+        if (t != 0.0)
+            newTilt = t * (maxTilt - minTilt) + minTilt;
+    }
+    
+    return std::min(newTilt,maxValidTilt);
+}
+
+/// Return the maximum allowable tilt
+- (double)maxTilt
+{
+    return asin(1.0/(1.0+globeView.heightAboveGlobe));
+}
+
+/// Called by an actual tilt gesture.  We're setting the tilt as given
+- (void)setTilt:(double)newTilt
+{
+    active = false;
+    outsideTilt = newTilt;
+}
+
+@end
 
 @implementation WGPinchDelegateFixed
 {
@@ -38,9 +113,6 @@ using namespace WhirlyKit;
     bool valid;
 	WhirlyGlobeView *globeView;
     double startRot;
-    // Tilt parameters
-    bool tiltZoom;
-    float minTilt,maxTilt,minTiltHeight,maxTiltHeight;
 }
 
 - (id)initWithGlobeView:(WhirlyGlobeView *)inView
@@ -54,59 +126,11 @@ using namespace WhirlyKit;
         _zoomAroundPinch = true;
         _doRotation = false;
         _northUp = false;
-        tiltZoom = false;
         valid = false;
 	}
 	
 	return self;
 }
-
-- (void)setMinTilt:(float)inMinTilt maxTilt:(float)inMaxTilt minHeight:(float)inMinHeight maxHeight:(float)inMaxHeight
-{
-    tiltZoom = true;
-    minTilt = inMinTilt;
-    maxTilt = inMaxTilt;
-    minTiltHeight = inMinHeight;
-    maxTiltHeight = inMaxHeight;
-}
-
-- (bool)getMinTilt:(float *)retMinTilt maxTilt:(float *)retMaxTilt minHeight:(float *)retMinHeight maxHeight:(float *)retMaxHeight
-{
-    *retMinTilt = minTilt;
-    *retMaxTilt = maxTilt;
-    *retMinHeight = minTiltHeight;
-    *retMaxHeight = maxTiltHeight;
-    
-    return tiltZoom;
-}
-
-- (void)clearTiltZoom
-{
-    tiltZoom = false;
-}
-
-- (float)calcTilt
-{
-    float newTilt = 0.0;
-
-    // Now the tilt, if we're in that mode
-    if (tiltZoom)
-    {
-        float newHeight = globeView.heightAboveGlobe;
-        if (newHeight <= minTiltHeight)
-            newTilt = minTilt;
-        else if (newHeight >= maxTiltHeight)
-            newTilt = maxTilt;
-        else {
-            float t = (newHeight-minTiltHeight)/(maxTiltHeight - minTiltHeight);
-            if (t != 0.0)
-                newTilt = t * (maxTilt - minTilt) + minTilt;
-        }
-    }
-    
-    return newTilt;
-}
-
 
 + (WGPinchDelegateFixed *)pinchDelegateForView:(UIView *)view globeView:(WhirlyGlobeView *)globeView
 {
@@ -120,6 +144,9 @@ using namespace WhirlyKit;
 
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)otherGestureRecognizer
 {
+    if ([otherGestureRecognizer.delegate isKindOfClass:[TiltDelegate class]] && valid)
+        return FALSE;
+    
     return TRUE;
 }
 
@@ -130,6 +157,13 @@ using namespace WhirlyKit;
 	WhirlyKitEAGLView *glView = (WhirlyKitEAGLView  *)pinch.view;
 	UIGestureRecognizerState theState = pinch.state;
 	WhirlyKitSceneRendererES *sceneRender = glView.renderer;
+    
+    if (theState == UIGestureRecognizerStateCancelled)
+    {
+        [[NSNotificationCenter defaultCenter] postNotificationName:kPinchDelegateDidEnd object:globeView];
+        valid = false;
+        return;
+    }
     
     if (pinch.numberOfTouches != 2)
         valid = false;
@@ -172,6 +206,7 @@ using namespace WhirlyKit;
 		case UIGestureRecognizerStateChanged:
             if (valid)
             {
+                bool onSphere = true;
 //                NSLog(@"Pinch updated");
                 [globeView cancelAnimation];
                 
@@ -182,13 +217,13 @@ using namespace WhirlyKit;
 
                 Eigen::Quaterniond newRotQuat = globeView.rotQuat;
                 Point3d axis = [globeView currentUp];
+                Eigen::Quaterniond oldQuat = globeView.rotQuat;
                 if (_zoomAroundPinch)
                 {
                     // Figure out where we are now
                     // We have to roll back to the original transform with the current height
                     //  to get the rotation we want
                     Point3d hit;
-                    Eigen::Quaterniond oldQuat = globeView.rotQuat;
                     [globeView setRotQuat:startQuat updateWatchers:false];
                     Eigen::Matrix4d curTransform = [globeView calcFullMatrix];
                     if ([globeView pointOnSphereFromScreen:[pinch locationInView:glView] transform:&curTransform
@@ -202,6 +237,7 @@ using namespace WhirlyKit;
                         axis = hit.normalized();
                         newRotQuat = startQuat * endRot;
                     } else {
+                        onSphere = false;
                         newRotQuat = oldQuat;
                     }
                 }
@@ -242,16 +278,29 @@ using namespace WhirlyKit;
                     }
                 }
                 
-                [globeView setRotQuat:(newRotQuat) updateWatchers:false];
-                float newTilt = [self calcTilt];
-                [globeView setTilt:newTilt];
+                // This does strange things when we've got a serious tilt and we're off the globe
+                if (!onSphere && globeView.tilt != 0.0)
+                {
+                    globeView.rotQuat = oldQuat;
+                    self.gestureRecognizer.enabled = NO;
+                    self.gestureRecognizer.enabled = YES;
+                    return;
+                }
                 
+                [globeView setRotQuat:(newRotQuat) updateWatchers:false];
+                if (_tiltDelegate)
+                {
+                    float newTilt = [_tiltDelegate tiltFromHeight:newH];
+                    [globeView setTilt:newTilt];
+                }
+
                 if (_rotateDelegate)
                     [_rotateDelegate updateWithCenter:[pinch locationInView:glView] touch:[pinch locationOfTouch:0 inView:glView ] glView:glView];
                 
                 [globeView runViewUpdates];
             }
 			break;
+        case UIGestureRecognizerStateCancelled:
         case UIGestureRecognizerStateEnded:
 //            NSLog(@"Pinch ended");
             [[NSNotificationCenter defaultCenter] postNotificationName:kPinchDelegateDidEnd object:globeView];

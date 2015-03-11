@@ -48,8 +48,14 @@
 /// @brief Use widened vectors (which do anti-aliasing and such)
 @property (nonatomic) bool useWideVectors;
 
+/// @brief Where we're using old vectors (e.g. not wide) scale them by this amount
+@property (nonatomic) float oldVecWidthScale;
+
 /// @brief If we're using widened vectors, only active them for strokes wider than this.  Defaults to zero.
 @property (nonatomic) float wideVecCuttoff;
+
+/// @brief If set, we'll make the areal features selectable.  If not, this saves memory.
+@property (nonatomic) bool selectable;
 
 /// @brief The default font family for all text
 @property (nonatomic,strong) NSString *fontName;
@@ -78,7 +84,7 @@
 - (void)resolveVisibility:(NSDictionary *)styleEntry settings:(MaplyVectorTileStyleSettings *)settings desc:(NSMutableDictionary *)desc;
 
 /// @brief Construct objects related to this style based on the input data.
-- (NSArray *)buildObjects:(NSArray *)vecObjs viewC:(MaplyBaseViewController *)viewC;
+- (NSArray *)buildObjects:(NSArray *)vecObjs forTile:(MaplyTileID)tileID viewC:(MaplyBaseViewController *)viewC;
 
 /// @brief parse a mapnik style template string
 - (NSString*)formatText:(NSString*)formatString forObject:(MaplyVectorObject*)vec;

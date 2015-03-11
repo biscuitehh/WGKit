@@ -38,10 +38,10 @@ using namespace WhirlyKit;
     float       height;
     float       base;
     float       minVis,maxVis;
-    int         priority;
+    int         priority,outlineDrawPriority;
     bool        top,side;
     bool        layered;
-    bool        outline;
+    bool        outline,outlineSide,outlineBottom;
     UIColor     *outlineColor;
     float       outlineWidth;
     bool        readZBuffer;
@@ -87,7 +87,7 @@ using namespace WhirlyKit;
 - (void)parseDesc:(NSDictionary *)dict key:(NSString *)inKey
 {
     self.color = [dict objectForKey:@"color" checkType:[UIColor class] default:[UIColor whiteColor]];
-    priority = [dict intForKey:@"drawPriority" default:0];
+    priority = [dict intForKey:@"drawPriority" default:70000];
     priority = [dict intForKey:@"priority" default:priority];
     height = [dict floatForKey:@"height" default:.01];
     base = [dict floatForKey:@"base" default:0.0];
@@ -100,6 +100,9 @@ using namespace WhirlyKit;
     outline = [dict boolForKey:@"outline" default:false];
     outlineColor = [dict objectForKey:@"outlineColor" checkType:[UIColor class] default:[UIColor whiteColor]];
     outlineWidth = [dict floatForKey:@"outlineWidth" default:1.0];
+    outlineDrawPriority = [dict intForKey:@"outlineDrawPriority" default:priority+1];
+    outlineSide = [dict boolForKey:@"outlineSide" default:NO];
+    outlineBottom = [dict boolForKey:@"outlineBottom" default:NO];
     readZBuffer = [dict boolForKey:@"zbufferread" default:YES];
     writeZBuffer = [dict boolForKey:@"zbufferwrite" default:NO];
     enable = [dict boolForKey:@"enable" default:true];
@@ -210,7 +213,7 @@ class DrawableBuilder2
 public:
     DrawableBuilder2(Scene *scene,ChangeSet &changes,LoftedPolySceneRep *sceneRep,
                      WhirlyKitLoftedPolyInfo *polyInfo,int primType,const GeoMbr &inDrawMbr)
-    : scene(scene), sceneRep(sceneRep), polyInfo(polyInfo), drawable(NULL), primType(primType), changes(changes)
+    : scene(scene), sceneRep(sceneRep), polyInfo(polyInfo), drawable(NULL), primType(primType), changes(changes), centerValid(false), center(0,0,0), geoCenter(0,0)
     {
         drawMbr = inDrawMbr;
     }
@@ -218,6 +221,13 @@ public:
     ~DrawableBuilder2()
     {
         flush();
+    }
+    
+    void setCenter(const Point3d &newCenter,const Point2d &inGeoCenter)
+    {
+        centerValid = true;
+        center = newCenter;
+        geoCenter = inGeoCenter;
     }
     
     // Initialize or flush a drawable, as needed
@@ -237,7 +247,8 @@ public:
             drawable->setColor([((primType == GL_TRIANGLES) ? polyInfo.color : polyInfo->outlineColor) asRGBAColor]);
             if (primType == GL_LINES)
                 drawable->setLineWidth(polyInfo->outlineWidth);
-            drawable->setDrawPriority(polyInfo->priority);
+            drawable->setOnOff(polyInfo->enable);
+            drawable->setDrawPriority(polyInfo->outlineDrawPriority);
             drawable->setRequestZBuffer(polyInfo->readZBuffer);
             drawable->setWriteZBuffer(polyInfo->writeZBuffer);
             drawable->setVisibleRange(polyInfo->minVis,polyInfo->maxVis);
@@ -255,11 +266,11 @@ public:
         {
             // Get some real world coordinates and corresponding normal
             Point2f &geoPt = verts[ii];
-            GeoCoord geoCoord = GeoCoord(geoPt.x(),geoPt.y());
-            Point3f localPt = coordAdapter->getCoordSystem()->geographicToLocal(geoCoord);
-            Point3f dispPt = coordAdapter->localToDisplay(localPt);
-            Point3f norm = coordAdapter->normalForLocal(localPt);
-            Point3f pt1 = dispPt + norm * height;
+            Point2d geoCoordD(geoPt.x()+geoCenter.x(),geoPt.y()+geoCenter.y());
+            Point3d localPt = coordAdapter->getCoordSystem()->geographicToLocal(geoCoordD);
+            Point3d dispPt = coordAdapter->localToDisplay(localPt);
+            Point3d norm = coordAdapter->normalForLocal(localPt);
+            Point3d pt1 = dispPt + norm * height - center;
             
             drawable->addPoint(pt1);
             drawable->addNormal(norm);
@@ -297,10 +308,11 @@ public:
     }
     
     // Add a set of outlines
-    void addOutline(std::vector<VectorRing> &rings)
+    void addOutline(std::vector<VectorRing> &rings,bool useHeight)
     {
         if (primType != GL_LINES)
             return;
+        double height = (useHeight ? polyInfo->height : 0.0);
         
         setupDrawable(0);
         CoordSystemDisplayAdapter *coordAdapter = scene->getCoordAdapter();
@@ -308,16 +320,16 @@ public:
         for (unsigned int ii=0;ii<rings.size();ii++)
         {
             VectorRing &verts = rings[ii];
-            Point3f prevPt,prevNorm,firstPt,firstNorm;
+            Point3d prevPt,prevNorm,firstPt,firstNorm;
             for (unsigned int jj=0;jj<verts.size();jj++)
             {
                 // Convert to real world coordinates and offset from the globe
                 Point2f &geoPt = verts[jj];
-                GeoCoord geoCoord = GeoCoord(geoPt.x(),geoPt.y());
-                Point3f localPt = coordAdapter->getCoordSystem()->geographicToLocal(geoCoord);
-                Point3f norm = coordAdapter->normalForLocal(localPt);
-                Point3f pt = coordAdapter->localToDisplay(localPt);
-                pt += norm * polyInfo->height;
+                Point2d geoCoordD(geoPt.x()+geoCenter.x(),geoPt.y()+geoCenter.y());
+                Point3d localPt = coordAdapter->getCoordSystem()->geographicToLocal(geoCoordD);
+                Point3d dispPt = coordAdapter->localToDisplay(localPt);
+                Point3d norm = coordAdapter->normalForLocal(localPt);
+                Point3d pt = dispPt + norm * height - center;
                 
                 // Add to drawable
                 // Depending on the type, we do this differently
@@ -354,16 +366,16 @@ public:
         int ptCount = (int)(4*(pts.size()+1));
         setupDrawable(ptCount);
         
-        Point3f prevPt0,prevPt1,prevNorm,firstPt0,firstPt1,firstNorm;
+        Point3d prevPt0,prevPt1,prevNorm,firstPt0,firstPt1,firstNorm;
         for (unsigned int jj=0;jj<pts.size();jj++)
         {
             // Get some real world coordinates and corresponding normal
             Point2f &geoPt = pts[jj];
-            GeoCoord geoCoord = GeoCoord(geoPt.x(),geoPt.y());
-            Point3f localPt = coordAdapter->getCoordSystem()->geographicToLocal(geoCoord);
-            Point3f norm = coordAdapter->normalForLocal(localPt);
-            Point3f pt0 = coordAdapter->localToDisplay(localPt);
-            Point3f pt1 = pt0 + norm * polyInfo->height;
+            Point2d geoCoordD(geoPt.x()+geoCenter.x(),geoPt.y()+geoCenter.y());
+            Point3d localPt = coordAdapter->getCoordSystem()->geographicToLocal(geoCoordD);
+            Point3d norm = coordAdapter->normalForLocal(localPt);
+            Point3d pt0 = coordAdapter->localToDisplay(localPt);
+            Point3d pt1 = pt0 + norm * polyInfo->height;
             if (polyInfo->base > 0.0)
                 pt0 = pt0 + norm * polyInfo->base;
             
@@ -371,13 +383,13 @@ public:
             if (jj > 0)
             {
                 int startVert = drawable->getNumPoints();
-                drawable->addPoint(prevPt0);
-                drawable->addPoint(prevPt1);
-                drawable->addPoint(pt1);
-                drawable->addPoint(pt0);
+                drawable->addPoint((Point3d)(prevPt0-center));
+                drawable->addPoint((Point3d)(prevPt1-center));
+                drawable->addPoint((Point3d)(pt1-center));
+                drawable->addPoint((Point3d)(pt0-center));
                 
                 // Normal points out
-                Point3f crossNorm = norm.cross(pt1-prevPt1);
+                Point3d crossNorm = norm.cross(pt1-prevPt1);
                 crossNorm.normalize();
                 crossNorm *= -1;
                 
@@ -409,12 +421,12 @@ public:
         if (primType == GL_LINES)
         {
             int startVert = drawable->getNumPoints();
-            drawable->addPoint(prevPt0);
-            drawable->addPoint(prevPt1);
-            drawable->addPoint(firstPt1);
-            drawable->addPoint(firstPt0);
+            drawable->addPoint((Point3d)(prevPt0-center));
+            drawable->addPoint((Point3d)(prevPt1-center));
+            drawable->addPoint((Point3d)(firstPt1-center));
+            drawable->addPoint((Point3d)(firstPt0-center));
             
-            Point3f crossNorm = prevNorm.cross(firstPt1-prevPt1);
+            Point3d crossNorm = prevNorm.cross(firstPt1-prevPt1);
             crossNorm *= -1;
             drawable->addNormal(crossNorm);
             drawable->addNormal(crossNorm);
@@ -431,6 +443,37 @@ public:
         }
     }
     
+    void addUprights(VectorRing &pts)
+    {
+        if (primType != GL_LINES)
+            return;
+        CoordSystemDisplayAdapter *coordAdapter = scene->getCoordAdapter();
+        
+        // Decide if we'll appending to an existing drawable or
+        //  create a new one
+        int ptCount = (int)(2*pts.size());
+        setupDrawable(ptCount);
+        
+        for (unsigned int jj=0;jj<pts.size();jj++)
+        {
+            // Get some real world coordinates and corresponding normal
+            Point2f &geoPt = pts[jj];
+            Point2d geoCoordD(geoPt.x()+geoCenter.x(),geoPt.y()+geoCenter.y());
+            Point3d localPt = coordAdapter->getCoordSystem()->geographicToLocal(geoCoordD);
+            Point3d norm = coordAdapter->normalForLocal(localPt);
+            Point3d pt0 = coordAdapter->localToDisplay(localPt);
+            Point3d pt1 = pt0 + norm * polyInfo->height;
+            if (polyInfo->base > 0.0)
+                pt0 = pt0 + norm * polyInfo->base;
+            
+            // Just do the uprights as lines
+            drawable->addPoint(pt0);
+            drawable->addNormal(pt0);
+            drawable->addPoint(pt1);
+            drawable->addNormal(pt0);
+        }
+    }
+    
     void flush()
     {
         if (drawable)
@@ -438,12 +481,18 @@ public:
             if (drawable->getNumPoints() > 0)
             {
                 drawable->setLocalMbr(Mbr(Point2f(drawMbr.ll().x(),drawMbr.ll().y()),Point2f(drawMbr.ur().x(),drawMbr.ur().y())));
-                sceneRep->drawIDs.insert(drawable->getId());
+                if (centerValid)
+                {
+                    Eigen::Affine3d trans(Eigen::Translation3d(center.x(),center.y(),center.z()));
+                    Matrix4d transMat = trans.matrix();
+                    drawable->setMatrix(&transMat);
+                }
                 if (polyInfo.fade > 0)
                 {
                     NSTimeInterval curTime = CFAbsoluteTimeGetCurrent();
                     drawable->setFade(curTime,curTime+polyInfo.fade);
                 }
+                sceneRep->drawIDs.insert(drawable->getId());
                 changes.push_back(new AddDrawableReq(drawable));
             } else
                 delete drawable;
@@ -459,6 +508,10 @@ protected:
     BasicDrawable *drawable;
     WhirlyKitLoftedPolyInfo *polyInfo;
     GLenum primType;
+    Point3d center;
+    Point2d geoCenter;
+    bool applyCenter;
+    bool centerValid;
 };
     
     
@@ -477,17 +530,21 @@ LoftManager::~LoftManager()
 }
     
 // From a scene rep and a description, add the given polygons to the drawable builder
-void LoftManager::addGeometryToBuilder(LoftedPolySceneRep *sceneRep,WhirlyKitLoftedPolyInfo *polyInfo,GeoMbr &drawMbr,ChangeSet &changes)
+void LoftManager::addGeometryToBuilder(LoftedPolySceneRep *sceneRep,WhirlyKitLoftedPolyInfo *polyInfo,GeoMbr &drawMbr,Point3d &center,bool centerValid,Point2d &geoCenter,ChangeSet &changes)
 {
     int numShapes = 0;
     
     // Used to toss out drawables as we go
     // Its destructor will flush out the last drawable
     DrawableBuilder2 drawBuild(scene,changes,sceneRep,polyInfo,GL_TRIANGLES,drawMbr);
+    if (centerValid)
+        drawBuild.setCenter(center,geoCenter);
     
     // Toss in the polygons for the sides
     if (polyInfo->height != 0.0)
     {
+        DrawableBuilder2 drawBuild2(scene,changes,sceneRep,polyInfo,GL_LINES,drawMbr);
+
         for (ShapeSet::iterator it = sceneRep->shapes.begin();
              it != sceneRep->shapes.end(); ++it)
         {
@@ -500,6 +557,10 @@ void LoftManager::addGeometryToBuilder(LoftedPolySceneRep *sceneRep,WhirlyKitLof
                     {
                         drawBuild.addSkirtPoints(theAreal->loops[ri]);
                         numShapes++;
+                        
+                        // Do the uprights around the side
+                        if (polyInfo->outlineSide)
+                            drawBuild2.addUprights(theAreal->loops[ri]);
                     }
                 }
             }
@@ -510,13 +571,19 @@ void LoftManager::addGeometryToBuilder(LoftedPolySceneRep *sceneRep,WhirlyKitLof
     if (polyInfo->top)
         drawBuild.addPolyGroup(sceneRep->triMesh);
         
-        // And do the top outline if it's there
-        if (polyInfo->top && polyInfo->outline)
-        {
-            DrawableBuilder2 drawBuild2(scene,changes,sceneRep,polyInfo,GL_LINES,drawMbr);
-            drawBuild2.addOutline(sceneRep->outlines);
-            sceneRep->outlines.clear();
-        }
+    // And do the top outline if it's there
+    if (polyInfo->outline || polyInfo->outlineBottom)
+    {
+        DrawableBuilder2 drawBuild2(scene,changes,sceneRep,polyInfo,GL_LINES,drawMbr);
+        if (centerValid)
+            drawBuild2.setCenter(center,geoCenter);
+        if (polyInfo->outline)
+            drawBuild2.addOutline(sceneRep->outlines,true);
+        if (polyInfo->outlineBottom)
+            drawBuild2.addOutline(sceneRep->outlines,false);
+        
+        sceneRep->outlines.clear();
+    }
     
     //    printf("Added %d shapes and %d triangles from mesh\n",(int)numShapes,(int)sceneRep->triMesh.size());        
 }
@@ -532,11 +599,42 @@ SimpleIdentity LoftManager::addLoftedPolys(WhirlyKit::ShapeSet *shapes,NSDiction
     SimpleIdentity loftID = EmptyIdentity;
 
     CoordSystemDisplayAdapter *coordAdapter = scene->getCoordAdapter();
+    CoordSystem *coordSys = coordAdapter->getCoordSystem();
     LoftedPolySceneRep *sceneRep = new LoftedPolySceneRep();
     sceneRep->setId(polyInfo->sceneRepId);
     loftID = polyInfo->sceneRepId;
     sceneRep->fade = polyInfo.fade;    
     sceneRep->shapes = polyInfo->shapes;
+    
+    Point3d center(0,0,0);
+    bool centerValid = false;
+    Point2d geoCenter(0,0);
+    if (desc[@"centered"] && [desc[@"centered"] boolValue])
+    {
+        // We might pass in a center
+        if (desc[@"veccenterx"] && desc[@"veccentery"])
+        {
+            geoCenter.x() = [desc[@"veccenterx"] doubleValue];
+            geoCenter.y() = [desc[@"veccentery"] doubleValue];
+            Point3d dispPt = coordAdapter->localToDisplay(coordSys->geographicToLocal(geoCenter));
+            center = dispPt;
+            centerValid = true;
+        } else {
+            // Calculate the center
+            GeoMbr geoMbr;
+            for (ShapeSet::iterator it = polyInfo->shapes.begin();
+                 it != polyInfo->shapes.end(); ++it)
+                geoMbr.expand((*it)->calcGeoMbr());
+            if (geoMbr.valid())
+            {
+                Point3d p0 = coordAdapter->localToDisplay(coordSys->geographicToLocal3d(geoMbr.ll()));
+                Point3d p1 = coordAdapter->localToDisplay(coordSys->geographicToLocal3d(geoMbr.ur()));
+                center = (p0+p1)/2.0;
+                centerValid = true;
+            }
+        }
+    }
+
     
     // Try reading from the cache
     if (!polyInfo.key || !sceneRep->readFromCache(polyInfo->cache,polyInfo.key))
@@ -586,7 +684,7 @@ SimpleIdentity LoftManager::addLoftedPolys(WhirlyKit::ShapeSet *shapes,NSDiction
     
     //    printf("runAddPoly: handing off %d clipped loops to addGeometry\n",(int)sceneRep->triMesh.size());
     
-    addGeometryToBuilder(sceneRep, polyInfo, sceneRep->shapeMbr, changes);
+    addGeometryToBuilder(sceneRep, polyInfo, sceneRep->shapeMbr, center, centerValid, geoCenter, changes);
     
     pthread_mutex_lock(&loftLock);
 

@@ -47,6 +47,16 @@
   */
 @property (nonatomic,strong) id image;
 
+/** @brief Images to display on the sticker.
+    @details If this is set rather than image, we will cycle through these images on the screen marker.  It will take period time to cycle through them all.
+  */
+@property (nonatomic,strong) NSArray *images;
+
+/** @brief The time we'll take to cycle through all the images for the marker.
+    @details If images are passed in, this is the time it will take to cycle through them all.  By default this is 5s.
+  */
+@property (nonatomic) double period;
+
 /** @brief Color for this particular marker.
     @details If set, this the color we'll use for the marker or how we'll tint the image.
     @details This overrides the color set in the description dictionary.
@@ -57,6 +67,11 @@
     @details The toolkit has a simple layout engine that runs several times per second.  It controls the placement of all participating screen based features, such as MaplyScreenLabel and MaplyScreenMaker objects.  This value controls the relative importance of this particular marker.  By default that importance is infinite (MAXFLOAT) and so the label will always appearing.  Setting this value to 1.0, for example, will mean that this marker competes with other screen objects for space.
  */
 @property (nonatomic,assign) float layoutImportance;
+
+/** @brief The size of the marker for layout purposes.
+    @details If layoutImportance is not set to MAXFLOAT, the screen marker will get throw into the mix when doing screen layout.  With this, you can set the size of the marker when considering layout.  If you set this to (0,0) the maker will take up no space, but still be considered in the layout.
+  */
+@property (nonatomic,assign) CGSize layoutSize;
 
 /** @brief Offset in screen coordinates.
     @details Set to zero by default, this is the offset we'll apply to a given screen marker before it's drawn.  The values are screen points.
@@ -69,9 +84,22 @@
 @property (nonatomic,assign) bool selectable;
 
 /** @brief User data object for selection
-    @details When the user selects a feature and the developer gets it in their delegate, this is an object they can use to figure out what the screen label means to them.
+ @details When the user selects a feature and the developer gets it in their delegate, this is an object they can use to figure out what the screen marker means to them.
  */
-@property (nonatomic,strong) NSObject *userObject;
+@property (nonatomic,strong) id userObject;
+
+@end
+
+/** @brief A version of the maply screen marker that moves.
+    @details This version of the screen marker can move in a limited way over time.
+  */
+@interface MaplyMovingScreenMarker : MaplyScreenMarker
+
+/// @brief The end point for animation
+@property (nonatomic,assign) MaplyCoordinate endLoc;
+
+/// @brief How long it will take the screen marker to get to endLoc
+@property (nonatomic,assign) NSTimeInterval duration;
 
 @end
 

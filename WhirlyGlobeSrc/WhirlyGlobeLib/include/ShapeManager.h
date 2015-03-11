@@ -109,7 +109,7 @@ typedef std::set<ShapeSceneRep *,IdentifiableSorter> ShapeSceneRepSet;
 
 /** A linear feature (with width) that we'll draw on
  top of a globe or map.  This is different from the
- vector layer features in that it has exactly locations.
+ vector layer features in that it has exact locations.
  */
 @interface WhirlyKitShapeLinear : WhirlyKitShape
 
@@ -120,6 +120,24 @@ typedef std::set<ShapeSceneRep *,IdentifiableSorter> ShapeSceneRepSet;
 @property (nonatomic,assign) std::vector<WhirlyKit::Point3f> &pts;
 /// Line width in pixels
 @property (nonatomic,assign) float lineWidth;
+
+@end
+
+/** An extruded shape
+  */
+@interface WhirlyKitShapeExtruded : WhirlyKitShape
+
+/// The location for the origin of the shape
+@property (nonatomic,assign) WhirlyKit::Point3d &loc;
+
+/// Points around the origin defining the shape
+@property (nonatomic,assign) std::vector<WhirlyKit::Point2d> &pts;
+
+/// Thickness of the shape
+@property (nonatomic,assign) double thickness;
+
+/// Transform to apply to this extruded shape before placement
+@property (nonatomic,assign) Eigen::Matrix4d &transform;
 
 @end
 

@@ -278,10 +278,12 @@ static NSString *FILTERMODE_ATTRIBUTE = @"filter-mode";
 }
 
 
-#pragma mark - VectorStyleDelegate
+#pragma mark - MaplyVectorStyleDelegate
 - (NSArray*)stylesForFeatureWithAttributes:(NSDictionary*)attributes
                                     onTile:(MaplyTileID)tileID
-                                   inLayer:(NSString*)layer {
+                                   inLayer:(NSString*)layer
+                                     viewC:(MaplyBaseViewController *)viewC
+{
   NSMutableArray *symbolizers = [NSMutableArray new];
   NSArray *styles = self.layers[layer];
 
@@ -311,12 +313,12 @@ static NSString *FILTERMODE_ATTRIBUTE = @"filter-mode";
 }
 
 
-- (BOOL)layerShouldDisplay:(NSString*)layer {
+- (BOOL)layerShouldDisplay:(NSString*)layer tile:(MaplyTileID)tileID {
   return self.layers[layer] != nil;
 }
 
 
-- (MaplyVectorTileStyle*)styleForUUID:(NSString *)uuid {
+- (MaplyVectorTileStyle*)styleForUUID:(NSString *)uuid viewC:(MaplyBaseViewController *)viewC {
   return self.symbolizers[uuid];
 }
 

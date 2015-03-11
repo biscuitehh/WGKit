@@ -53,13 +53,15 @@
                 @{kMaplyFilled: @(YES),
                  kMaplyDrawPriority: @(drawPriority+kMaplyVectorDrawPriorityDefault),
                   kMaplyVecCentered: @(true),
-                  kMaplySelectable: @(self.selectable)
+                  kMaplySelectable: @(self.selectable),
+                  kMaplyEnable: @(NO)
                  }];
         
         if (styleEntry[@"fill"])
         {
             desc[kMaplyColor] = [MaplyVectorTiles ParseColor:styleEntry[@"fill"] alpha:alpha];
         }
+        desc[kMaplySelectable] = @(settings.selectable);
         /*
         if(styleEntry[@"file"])
         {
@@ -76,7 +78,7 @@
     return self;
 }
 
-- (NSArray *)buildObjects:(NSArray *)vecObjs viewC:(MaplyBaseViewController *)viewC;
+- (NSArray *)buildObjects:(NSArray *)vecObjs forTile:(MaplyTileID)tileID viewC:(MaplyBaseViewController *)viewC;
 {
     MaplyComponentObject *baseObj = nil;
     NSMutableArray *compObjs = [NSMutableArray array];

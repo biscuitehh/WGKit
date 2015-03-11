@@ -60,6 +60,7 @@ public:
     SimpleIDSet selectIDs;  // IDs used for selection
     SimpleIDSet markerIDs;  // IDs for markers sent to the generator
     SimpleIDSet screenShapeIDs;  // IDs for screen space objects
+    bool useLayout;  // True if we used the layout manager (and thus need to delete)
     float fade;   // Time to fade away for deletion
 };
 typedef std::set<MarkerSceneRep *,IdentifiableSorter> MarkerSceneRepSet;
@@ -101,18 +102,27 @@ typedef std::set<MarkerSceneRep *,IdentifiableSorter> MarkerSceneRepSet;
 @property (nonatomic,assign) WhirlyKit::SimpleIdentity selectID;
 /// The location for the center of the marker.
 @property (nonatomic,assign) WhirlyKit::GeoCoord loc;
+/// Set if we're moving these over time (screen only)
+@property (nonatomic,assign) bool hasMotion;
+/// Set for animation over time
+@property (nonatomic,assign) WhirlyKit::GeoCoord endLoc;
+/// Timing for animation, if present
+@property (nonatomic,assign) NSTimeInterval startTime,endTime;
 /// Color for this marker
 @property (nonatomic) UIColor *color;
 /// The list of textures to use.  If there's just one
 ///  we show that.  If there's more than one, we switch
 ///  between them over the period.
 @property (nonatomic,assign) std::vector<WhirlyKit::SimpleIdentity> &texIDs;
-/// The width in 3-space (remember the globe has radius = 1.0)
 @property (nonatomic,assign) bool lockRotation;
 /// The height in 3-space (remember the globe has radius = 1.0)
 @property (nonatomic,assign) float height;
 /// The width in 3-space (remember the globe has radius = 1.0)
 @property (nonatomic,assign) float width;
+/// Height in screen space to consider for layout
+@property (nonatomic,assign) float layoutHeight;
+/// Width in screen space to soncider for layout
+@property (nonatomic,assign) float layoutWidth;
 /// Set if we want a static rotation.  Only matters in screen space
 /// This is rotation clockwise from north in radians
 @property (nonatomic,assign) float rotation;

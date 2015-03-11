@@ -57,7 +57,11 @@ using namespace WhirlyKit;
             // Now try looking for it in the bundle
             infoPath = [[NSBundle mainBundle] pathForResource:mbTilesName ofType:@"mbtiles"];
             if (!infoPath)
-                return nil;
+            {
+                infoPath = [[NSBundle mainBundle] pathForResource:mbTilesName ofType:@"sqlite"];
+                if (!infoPath)
+                    return nil;
+            }
         }
     }
     
@@ -133,6 +137,15 @@ using namespace WhirlyKit;
     return self;
 }
 
+- (void)dealloc
+{
+    @synchronized(self)
+    {
+        if (_sqlDb)
+            sqlite3_close(_sqlDb);
+    }
+}
+
 - (int)minZoom
 {
     return _minZoom;
@@ -148,7 +161,7 @@ using namespace WhirlyKit;
     return _pixelsPerTile;
 }
 
-- (bool)tileIsLocal:(MaplyTileID)tileID
+- (bool)tileIsLocal:(MaplyTileID)tileID frame:(int)frame
 {
     return true;
 }
@@ -198,6 +211,5 @@ using namespace WhirlyKit;
 
     return NO;
 }
-
 
 @end

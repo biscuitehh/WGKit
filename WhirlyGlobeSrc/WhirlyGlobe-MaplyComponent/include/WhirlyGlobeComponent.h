@@ -20,6 +20,7 @@
 
 #import <WGCoordinate.h>
 #import <MaplyCoordinateSystem.h>
+#import <MaplyMatrix.h>
 #import <MaplyTexture.h>
 #import <MaplyLabel.h>
 #import <MaplyScreenLabel.h>
@@ -50,3 +51,5 @@
 #import <MaplyIconManager.h>
 #import <MaplyMapnikVectorTiles.h>
 #import <MapnikStyleSet.h>
+#import <MaplyGeomModel.h>
+#import <MapboxMultiSourceTileInfo.h>

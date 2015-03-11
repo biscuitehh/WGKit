@@ -49,7 +49,7 @@ using namespace Eigen;
        	defaultNearPlane = super.nearPlane;
        	defaultFarPlane = super.farPlane;
        	// This will get you down to r17 in the usual tile sets
-       	absoluteMinNearPlane = 0.00001;
+        absoluteMinNearPlane = 0.00001;
        	absoluteMinFarPlane = 0.001;
        	absoluteMinHeight = 0.00005;
        	heightInflection = 0.011;
@@ -232,18 +232,19 @@ using namespace Eigen;
 	// Now intersect that with a unit sphere to see where we hit
 	Vector4d dir4 = modelScreenPt - modelEye;
 	Vector3d dir(dir4.x(),dir4.y(),dir4.z());
-	if (IntersectUnitSphere(Vector3d(modelEye.x(),modelEye.y(),modelEye.z()), dir, *hit))
+    double t;
+	if (IntersectUnitSphere(Vector3d(modelEye.x(),modelEye.y(),modelEye.z()), dir, *hit, &t) && t > 0.0)
 		return true;
 	
 	// We need the closest pass, if that didn't work out
     if (normalized)
     {
-	Vector3d orgDir(-modelEye.x(),-modelEye.y(),-modelEye.z());
-	orgDir.normalize();
-	dir.normalize();
-	Vector3d tmpDir = orgDir.cross(dir);
-	Vector3d resVec = dir.cross(tmpDir);
-	*hit = -resVec.normalized();
+        Vector3d orgDir(-modelEye.x(),-modelEye.y(),-modelEye.z());
+        orgDir.normalize();
+        dir.normalize();
+        Vector3d tmpDir = orgDir.cross(dir);
+        Vector3d resVec = dir.cross(tmpDir);
+        *hit = -resVec.normalized();
     } else {
         double len2 = dir.squaredNorm();
         double top = dir.dot(Vector3d(modelScreenPt.x(),modelScreenPt.y(),modelScreenPt.z()));

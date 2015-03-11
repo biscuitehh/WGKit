@@ -44,6 +44,7 @@ using namespace Eigen;
     _texID = [desc intForKey:@"texture" default:EmptyIdentity];
     _repeatSize = [desc floatForKey:@"repeatSize" default:(_coordType == WideVecCoordScreen ? 32 : 6371000.0 / 20)];
     _miterLimit = [desc floatForKey:@"miterLimit" default:2.0];
+    _texSnap = [desc boolForKey:@"texsnap" default:false];
 }
 
 @end
@@ -147,7 +148,7 @@ public:
             if (vecInfo.texID != EmptyIdentity)
                 drawable->addTexCoord(0, texCoords[vi]);
             drawable->addNormal(up);
-            drawable->addColor(thisColor);
+//            drawable->addColor(thisColor);
         }
         
         drawable->addTriangle(BasicDrawable::Triangle(startPt+0,startPt+1,startPt+3));
@@ -166,7 +167,7 @@ public:
             if (vecInfo.texID != EmptyIdentity)
                 drawable->addTexCoord(0, texCoords[vi]);
             drawable->addNormal(up);
-            drawable->addColor(thisColor);
+//            drawable->addColor(thisColor);
         }
         
         drawable->addTriangle(BasicDrawable::Triangle(startPt+0,startPt+1,startPt+3));
@@ -184,7 +185,7 @@ public:
             if (vecInfo.texID != EmptyIdentity)
                 drawable->addTexCoord(0, texCoords[vi]);
             drawable->addNormal(up);
-            drawable->addColor(thisColor);
+//            drawable->addColor(thisColor);
         }
         
         drawable->addTriangle(BasicDrawable::Triangle(startPt+0,startPt+1,startPt+2));
@@ -203,7 +204,7 @@ public:
             if (vecInfo.texID != EmptyIdentity)
                 drawable->addTexCoord(0, texCoords[vi]);
             drawable->addNormal(up);
-            drawable->addColor(thisColor);
+//            drawable->addColor(thisColor);
         }
         
         drawable->addTriangle(BasicDrawable::Triangle(startPt+0,startPt+1,startPt+2));
@@ -274,7 +275,6 @@ public:
         }
         
         RGBAColor thisColor = color;
-        // Note: Debugging
 //        float scale = drand48() / 2 + 0.5;
 //        thisColor.r *= scale;
 //        thisColor.g *= scale;
@@ -717,7 +717,7 @@ public:
                 drawable = wideDrawable;
                 drawable->setProgram(vecInfo.shader);
                 wideDrawable->setTexRepeat(vecInfo.repeatSize);
-                wideDrawable->setWidth(vecInfo.width);
+                wideDrawable->setLineWidth(vecInfo.width);
             }
 //            drawMbr.reset();
             drawable->setType(GL_TRIANGLES);
@@ -741,7 +741,6 @@ public:
     // Add the points for a linear
     void addLinear(VectorRing &pts,const Point3d &up)
     {
-        // Note: Debugging
         RGBAColor color = [vecInfo.color asRGBAColor];
 //        color.r = random()%256;
 //        color.g = random()%256;

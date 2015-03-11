@@ -122,11 +122,21 @@ static const float MomentumAnimLen = 1.0;
 	WhirlyKitEAGLView *glView = (WhirlyKitEAGLView *)pan.view;
 	WhirlyKitSceneRendererES *sceneRender = glView.renderer;
     
-    // Put ourselves on hold for more than one touch
+    if (pan.state == UIGestureRecognizerStateCancelled)
+    {
+        if (panType != PanNone)
+            [[NSNotificationCenter defaultCenter] postNotificationName:kPanDelegateDidEnd object:view];
+        panType = PanNone;
+        return;
+    }
+
+    // Cancel for more than one finger
     if ([pan numberOfTouches] > 1)
     {
         panType = PanSuspended;
         runEndMomentum = false;
+        _gestureRecognizer.enabled = false;
+        _gestureRecognizer.enabled = true;
         return;
     }
 	    
@@ -162,9 +172,18 @@ static const float MomentumAnimLen = 1.0;
 				Point3d hit;
                 CGPoint touchPt = [pan locationInView:glView];
                 lastTouch = touchPt;
-				[view pointOnSphereFromScreen:touchPt transform:&startTransform 
+				bool onSphere = [view pointOnSphereFromScreen:touchPt transform:&startTransform
 									frameSize:Point2f(sceneRender.framebufferWidth/glView.contentScaleFactor,sceneRender.framebufferHeight/glView.contentScaleFactor) hit:&hit normalized:true];
-                                                
+                
+                // The math breaks down when we have a significant tilt
+                // Cancel when they do that
+                if (!onSphere && view.tilt != 0.0)
+                {
+                    self.gestureRecognizer.enabled = NO;
+                    self.gestureRecognizer.enabled = YES;
+                    return;
+                }
+                    
 				// This gives us a direction to rotate around
 				// And how far to rotate
 				Eigen::Quaterniond endRot;

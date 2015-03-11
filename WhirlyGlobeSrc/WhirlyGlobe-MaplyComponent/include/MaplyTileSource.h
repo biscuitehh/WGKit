@@ -23,6 +23,17 @@
 #import "MaplyCoordinate.h"
 #import "MaplyCoordinateSystem.h"
 
+/** @brief Status information for each frame's loading status.
+ @details When loading animated frames, this contains the status of a single frame.
+ */
+@interface MaplyFrameStatus : NSObject
+
+@property (nonatomic) int numTilesLoaded;
+@property (nonatomic) bool fullyLoaded;
+@property (nonatomic) int currentFrame;
+
+@end
+
 /** @typedef struct MaplyTileID
     @brief This represents the indentifier for a unique tile in the pyramid.
     @details Each tile in an image (or vector tile) pyramid can be uniquely
@@ -70,7 +81,7 @@ NSString *MaplyTileIDString(MaplyTileID tileID);
     @details We may ask the tile source if the tile is local or needs to be fetched over the network.  This is a hint for the loader.  Don't return true in error, though, that'll hold up the paging.
     @return Return true for local tile sources or if you have the tile cached.
   */
-- (bool)tileIsLocal:(MaplyTileID)tileID;
+- (bool)tileIsLocal:(MaplyTileID)tileID frame:(int)frame;
 
 /** @brief The coordinate system the image pyramid is in.
  @details This is typically going to be MaplySphericalMercator
@@ -133,6 +144,22 @@ NSString *MaplyTileIDString(MaplyTileID tileID);
     @param frame The individual frame (of an animation) to fetch.
   */
 - (void)startFetchLayer:(id)layer tile:(MaplyTileID)tileID frame:(int)frame;
+
+/** @brief Called when the tile is disabled by the renderer.
+    @details Normally you won't get called when an image or vector tile is disabled from display.  If you set this, you will.
+    @details You're not required to do anything, but you can disable your own data if you like.
+    @details You will be called on another thread, so act accordingly.
+    @param tileID The tile tha that just got disabled.
+ */
+- (void)tileWasDisabled:(MaplyTileID)tileID;
+
+/** @brief Called when the tile is enabled by the renderer.
+    @details Normally you won't get called when an image or vector tile is enabled in display.  If you set this, you will.
+    @details You're not required to do anything, but you can enable your own data if you like.
+    @details You will be called on another thread, so act accordingly.
+    @param tileID The tile tha that just got disabled.
+ */
+- (void)tileWasEnabled:(MaplyTileID)tileID;
 
 /** @brief Called when the tile is unloaded.
     @details Normally you won't get called when an image or vector tile is unloaded from memory.  If you set this, you will.

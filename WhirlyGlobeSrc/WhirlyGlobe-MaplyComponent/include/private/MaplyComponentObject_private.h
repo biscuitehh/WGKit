@@ -38,9 +38,12 @@
 @property (nonatomic,assign) WhirlyKit::SimpleIDSet &chunkIDs;
 @property (nonatomic,assign) WhirlyKit::SimpleIDSet &loftIDs;
 @property (nonatomic,assign) WhirlyKit::SimpleIDSet &billIDs;
+@property (nonatomic,assign) WhirlyKit::SimpleIDSet &geomIDs;
 @property (nonatomic,assign) WhirlyKit::SimpleIDSet &selectIDs;
 @property (nonatomic,assign) std::set<MaplyTexture *> &textures;
+@property (nonatomic,assign) WhirlyKit::SimpleIDSet &drawStringIDs;
 @property (nonatomic,strong) NSArray *vectors;
+@property (nonatomic) WhirlyKit::Point2d &vectorOffset;
 @property (nonatomic,assign) bool isSelectable;
 @property (nonatomic,assign) bool enable;
 @property (nonatomic,assign) bool underConstruction;

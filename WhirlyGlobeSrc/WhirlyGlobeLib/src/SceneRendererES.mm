@@ -59,10 +59,13 @@ bool matrixAisSameAsB(Matrix4d &a,Matrix4d &b)
     _viewTrans = info.viewTrans;
     _viewTrans4d = info.viewTrans4d;
     _projMat = info.projMat;
+    _projMat4d = info.projMat4d;
     _viewAndModelMat = info.viewAndModelMat;
     _viewAndModelMat4d = info.viewAndModelMat4d;
     _mvpMat = info.mvpMat;
     _viewModelNormalMat = info.viewModelNormalMat;
+    _pvMat = info.pvMat;
+    _pvMat4d = info.pvMat4d;
     _offsetMatrices = info.offsetMatrices;
     _scene = info.scene;
     _frameLen = info.frameLen;
@@ -185,7 +188,7 @@ bool matrixAisSameAsB(Matrix4d &a,Matrix4d &b)
 		frameCount = 0;
 		_framesPerSec = 0.0;
         _numDrawables = 0;
-		frameCountStart = 0;
+		frameCountStart = 0.0;
         _zBufferMode = zBufferOn;
         _doCulling = true;
         _clearColor.r = 0.0;  _clearColor.g = 0.0;  _clearColor.b = 0.0;  _clearColor.a = 1.0;
@@ -268,6 +271,18 @@ bool matrixAisSameAsB(Matrix4d &a,Matrix4d &b)
 - (void)setRenderUntil:(NSTimeInterval)newRenderUntil
 {
     renderUntil = std::max(renderUntil,newRenderUntil);
+}
+
+- (void)addContinuousRenderRequest:(SimpleIdentity)drawID
+{
+    contRenderRequests.insert(drawID);
+}
+
+- (void)removeContinuousRenderRequest:(SimpleIdentity)drawID
+{
+    SimpleIDSet::iterator it = contRenderRequests.find(drawID);
+    if (it != contRenderRequests.end())
+        contRenderRequests.erase(it);
 }
 
 - (void)setTriggerDraw

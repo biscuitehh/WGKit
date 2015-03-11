@@ -30,6 +30,9 @@
 using namespace Eigen;
 using namespace WhirlyKit;
 
+@implementation MaplySelectedObject
+@end
+
 // Target for screen snapshot
 @interface SnapshotTarget : NSObject<WhirlyKitSnapshot>
 @property (nonatomic) UIImage *image;
@@ -172,6 +175,8 @@ using namespace WhirlyKit;
 {
     allowRepositionForAnnnotations = true;
     
+    _screenObjectDrawPriorityOffset = 1000000;
+    
     // Need this logic here to pull in the categories
     static bool dummyInit = false;
     if (!dummyInit)
@@ -233,6 +238,7 @@ using namespace WhirlyKit;
     
     // Lastly, an interaction layer of our own
     interactLayer = [self loadSetup_interactionLayer];
+    interactLayer.screenObjectDrawPriorityOffset = _screenObjectDrawPriorityOffset;
     interactLayer.glView = glView;
     [baseLayerThread addLayer:interactLayer];
     
@@ -261,6 +267,13 @@ using namespace WhirlyKit;
                                              selector:@selector(appForeground:)
                                                  name:UIApplicationWillEnterForegroundNotification
                                                object:nil];
+}
+
+- (void)setScreenObjectDrawPriorityOffset:(int)drawPriorityOffset
+{
+    _screenObjectDrawPriorityOffset = drawPriorityOffset;
+    if (interactLayer)
+        interactLayer.screenObjectDrawPriorityOffset = _screenObjectDrawPriorityOffset;
 }
 
 - (void) useGLContext
@@ -294,9 +307,12 @@ using namespace WhirlyKit;
 
 - (void)appBackground:(NSNotification *)note
 {
-    wasAnimating = glView.animating;
-    if (wasAnimating)
-        [self stopAnimation];
+    if(!wasAnimating || glView.animating)
+    {
+        wasAnimating = glView.animating;
+        if (wasAnimating)
+            [self stopAnimation];
+    }
 }
 
 - (void)appForeground:(NSNotification *)note
@@ -572,6 +588,11 @@ static const float PerfOutputDelay = 15.0;
     return [self addShapes:shapes desc:desc mode:MaplyThreadAny];
 }
 
+- (MaplyComponentObject *)addModelInstances:(NSArray *)modelInstances desc:(NSDictionary *)desc mode:(MaplyThreadMode)threadMode
+{
+    return [interactLayer addModelInstances:modelInstances desc:desc mode:threadMode];
+}
+
 - (MaplyComponentObject *)addStickers:(NSArray *)stickers desc:(NSDictionary *)desc mode:(MaplyThreadMode)threadMode
 {
     return [interactLayer addStickers:stickers desc:desc mode:threadMode];
@@ -602,7 +623,11 @@ static const float PerfOutputDelay = 15.0;
 {
     // Make sure we're not duplicating and add the object
     [self removeViewTrackForView:viewTrack.view];
-    [viewTrackers addObject:viewTrack];
+
+    @synchronized(self)
+    {
+        [viewTrackers addObject:viewTrack];
+    }
     
     // Hook it into the renderer
     ViewPlacementGenerator *vpGen = scene->getViewPlacementGenerator();
@@ -610,30 +635,42 @@ static const float PerfOutputDelay = 15.0;
     sceneRenderer.triggerDraw = true;
     
     // And add it to the view hierarchy
+    // Can only do this on the main thread anyway
     if ([viewTrack.view superview] == nil)
         [glView addSubview:viewTrack.view];
+}
+
+- (void)moveViewTracker:(MaplyViewTracker *)viewTrack moveTo:(MaplyCoordinate)newPos
+{
+    ViewPlacementGenerator *vpGen = scene->getViewPlacementGenerator();
+
+    vpGen->moveView(GeoCoord(newPos.x,newPos.y),viewTrack.view,viewTrack.minVis,viewTrack.maxVis);
+    sceneRenderer.triggerDraw = true;
 }
 
 /// Remove the view tracker associated with the given UIView
 - (void)removeViewTrackForView:(UIView *)view
 {
-    // Look for the entry
-    WGViewTracker *theTracker = nil;
-    for (WGViewTracker *viewTrack in viewTrackers)
-        if (viewTrack.view == view)
-        {
-            theTracker = viewTrack;
-            break;
-        }
-    
-    if (theTracker)
+    @synchronized(self)
     {
-        [viewTrackers removeObject:theTracker];
-        ViewPlacementGenerator *vpGen = scene->getViewPlacementGenerator();
-        vpGen->removeView(theTracker.view);
-        if ([theTracker.view superview] == glView)
-            [theTracker.view removeFromSuperview];
-        sceneRenderer.triggerDraw = true;
+        // Look for the entry
+        WGViewTracker *theTracker = nil;
+        for (WGViewTracker *viewTrack in viewTrackers)
+            if (viewTrack.view == view)
+            {
+                theTracker = viewTrack;
+                break;
+            }
+        
+        if (theTracker)
+        {
+            [viewTrackers removeObject:theTracker];
+            ViewPlacementGenerator *vpGen = scene->getViewPlacementGenerator();
+            vpGen->removeView(theTracker.view);
+            if ([theTracker.view superview] == glView)
+                [theTracker.view removeFromSuperview];
+            sceneRenderer.triggerDraw = true;
+        }
     }
 }
 
@@ -759,7 +796,26 @@ static const float PerfOutputDelay = 15.0;
 
 - (void)removeTexture:(MaplyTexture *)texture mode:(MaplyThreadMode)threadMode
 {
-    [interactLayer removeTexture:texture];
+    [interactLayer removeTextures:@[texture] mode:threadMode];
+}
+
+- (void)removeTextures:(NSArray *)textures mode:(MaplyThreadMode)threadMode
+{
+    [interactLayer removeTextures:textures mode:threadMode];
+}
+
+- (MaplyTexture *)addTextureToAtlas:(UIImage *)image mode:(MaplyThreadMode)threadMode
+{
+    MaplyTexture *maplyTex = [self addTextureToAtlas:image imageFormat:MaplyImageIntRGBA wrapFlags:0 mode:threadMode];
+    if (maplyTex)
+        maplyTex.viewC = self;
+    
+    return maplyTex;
+}
+
+- (MaplyTexture *)addTextureToAtlas:(UIImage *)image imageFormat:(MaplyQuadImageFormat)imageFormat wrapFlags:(int)wrapFlags mode:(MaplyThreadMode)threadMode
+{
+    return [interactLayer addTextureToAtlas:image imageFormat:imageFormat wrapFlags:wrapFlags mode:threadMode];
 }
 
 - (void)setMaxLayoutObjects:(int)maxLayoutObjects

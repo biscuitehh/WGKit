@@ -26,11 +26,13 @@
 #import "ImageTexture_private.h"
 #import "MaplyBaseViewController.h"
 #import "MaplyQuadImageTilesLayer.h"
+#import "MaplyTextureAtlas_private.h"
 
 @interface MaplyBaseInteractionLayer : NSObject<WhirlyKitLayer>
 {
 @public
     WhirlyKitView * __weak visualView;
+    WhirlyKitGLSetupInfo *glSetupInfo;
 
     pthread_mutex_t selectLock;
     // Use to map IDs in the selection layer to objects the user passed in
@@ -46,13 +48,22 @@
     // Used to track textures
     MaplyImageTextureSet imageTextures;
 
-    pthread_mutex_t userLock;
     // Component objects created for the user
     NSMutableSet *userObjects;
+    
+    // Texture atlas manager
+    MaplyTextureAtlasGroup *atlasGroup;
+    
+    pthread_mutex_t tempContextLock;
+    // We keep a set of temporary OpenGL ES contexts around for threads that don't have them
+    std::set<EAGLContext *> tempContexts;
 }
 
 // Note: Not a great idea to be passing this in
 @property (nonatomic,weak) UIView * glView;
+
+// Offset for draw priorities on screen objects
+@property (nonatomic,assign) int screenObjectDrawPriorityOffset;
 
 // Initialize with the view we'll be using
 - (id)initWithView:(WhirlyKitView *)visualView;
@@ -87,6 +98,9 @@
 // Add shapes
 - (MaplyComponentObject *)addShapes:(NSArray *)shapes desc:(NSDictionary *)desc mode:(MaplyThreadMode)threadMode;
 
+// Add model instances
+- (MaplyComponentObject *)addModelInstances:(NSArray *)modelInstances desc:(NSDictionary *)desc mode:(MaplyThreadMode)threadMode;
+
 // Add stickers
 - (MaplyComponentObject *)addStickers:(NSArray *)stickers desc:(NSDictionary *)desc mode:(MaplyThreadMode)threadMode;
 
@@ -112,7 +126,10 @@
 - (MaplyTexture *)addTexture:(UIImage *)image imageFormat:(MaplyQuadImageFormat)imageFormat wrapFlags:(int)wrapFlags mode:(MaplyThreadMode)threadMode;
 
 // Explicitly remove a texture
-- (void)removeTexture:(MaplyTexture *)texture;
+- (void)removeTextures:(NSArray *)textures mode:(MaplyThreadMode)threadMode;
+
+// Add a texture to an atlas
+- (MaplyTexture *)addTextureToAtlas:(UIImage *)image imageFormat:(MaplyQuadImageFormat)imageFormat wrapFlags:(int)wrapFlags mode:(MaplyThreadMode)threadMode;
 
 // Start collecting changes for this thread
 - (void)startChanges;
@@ -125,12 +142,15 @@
 // An internal routine to add an image to our local UIImage/ID cache
 - (MaplyTexture *)addImage:(id)image imageFormat:(MaplyQuadImageFormat)imageFormat wrapFlags:(int)wrapFlags mode:(MaplyThreadMode)threadMode;
 
+// This version defaults the wrap flags
+- (MaplyTexture *)addImage:(id)image imageFormat:(MaplyQuadImageFormat)imageFormat mode:(MaplyThreadMode)threadMode;
+
 // Remove the texture associated with an image  or just decrement its reference count
-- (void)removeImageTexture:(MaplyTexture *)tex;
+- (void)removeImageTexture:(MaplyTexture *)tex changes:(WhirlyKit::ChangeSet &)changes;
 
 // Do a point in poly check for vectors we're representing
-- (NSObject *)findVectorInPoint:(WhirlyKit::Point2f)pt;
-- (NSObject *)findVectorInPoint:(WhirlyKit::Point2f)pt inView:(MaplyBaseViewController*)vc;
+- (NSArray *)findVectorsInPoint:(WhirlyKit::Point2f)pt;
+- (NSArray *)findVectorsInPoint:(WhirlyKit::Point2f)pt inView:(MaplyBaseViewController*)vc multi:(bool)multi;
 
 // Find the Maply object corresponding to the given ID (from the selection manager).
 // Thread-safe
